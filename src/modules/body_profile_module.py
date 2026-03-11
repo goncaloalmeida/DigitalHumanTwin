@@ -43,9 +43,7 @@ class BodyProfileModule(IModule):
         self._syncing_layer_controls = False
         self._current_body: Optional[dict[str, object]] = None
 
-        self._skeleton_preview: Optional[BodyPreviewWidget] = None
-        self._fat_preview: Optional[BodyPreviewWidget] = None
-        self._muscle_preview: Optional[BodyPreviewWidget] = None
+        self._body_preview: Optional[BodyPreviewWidget] = None
 
         self._organ_value_labels: dict[str, QLabel] = {}
 
@@ -200,13 +198,12 @@ class BodyProfileModule(IModule):
         row = QHBoxLayout()
         row.setSpacing(10)
 
-        self._skeleton_preview = BodyPreviewWidget("skeleton", self._root)
-        self._fat_preview = BodyPreviewWidget("fat", self._root)
-        self._muscle_preview = BodyPreviewWidget("muscle", self._root)
+        self._body_preview = BodyPreviewWidget("neutral", self._root)
 
-        row.addWidget(self._build_body_card("SKELETON", self._skeleton_preview, "Volume", "17,240 cm3"), 1)
-        row.addWidget(self._build_body_card("FAT", self._fat_preview, "Visceral Volume", "2,580 cm3"), 1)
-        row.addWidget(self._build_body_card("MUSCLE", self._muscle_preview, "Volume", "16,780 cm3"), 1)
+        row.addWidget(
+            self._build_body_card("BODY", self._body_preview, "Camadas", "Visualizacao unica layer-by-layer"),
+            1,
+        )
 
         return row
 
@@ -322,9 +319,8 @@ class BodyProfileModule(IModule):
             self._current_body["layer_index"] = index
             self._refresh_body_info()
 
-        for preview in [self._skeleton_preview, self._fat_preview, self._muscle_preview]:
-            if preview is not None:
-                preview.set_active_layer(index)
+        if self._body_preview is not None:
+            self._body_preview.set_active_layer(index)
 
         self._update_organs_metrics(index)
 

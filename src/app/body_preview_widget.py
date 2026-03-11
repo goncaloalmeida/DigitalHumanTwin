@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from core.anatomy_assets import ACTIVE_ASSET_CATALOG, LayerAssetSpec
 
-BodyMode = Literal["skeleton", "fat", "muscle"]
+BodyMode = Literal["skeleton", "fat", "muscle", "neutral"]
 
 
 def _resolve_symbol(module: object, *names: str) -> object:
@@ -27,11 +27,6 @@ try:
     QTransform = _resolve_symbol(Qt3DCore, "QTransform", "Qt3DCore.QTransform")
 
     Qt3DWindow = _resolve_symbol(Qt3DExtras, "Qt3DWindow", "Qt3DExtras.Qt3DWindow")
-    QOrbitCameraController = _resolve_symbol(
-        Qt3DExtras,
-        "QOrbitCameraController",
-        "Qt3DExtras.QOrbitCameraController",
-    )
     QPhongMaterial = _resolve_symbol(Qt3DExtras, "QPhongMaterial", "Qt3DExtras.QPhongMaterial")
     QCuboidMesh = _resolve_symbol(Qt3DExtras, "QCuboidMesh", "Qt3DExtras.QCuboidMesh")
     QCylinderMesh = _resolve_symbol(Qt3DExtras, "QCylinderMesh", "Qt3DExtras.QCylinderMesh")
@@ -56,7 +51,6 @@ class BodyPreviewWidget(QWidget):
         self._layer_entities: list[dict[str, object]] = []
         self._container: QWidget | None = None
         self._view3d: object | None = None
-        self._camera_controller: object | None = None
         self._timer = QTimer(self)
 
         self.setMinimumSize(220, 360)
@@ -114,15 +108,12 @@ class BodyPreviewWidget(QWidget):
             camera.setPosition(QVector3D(0.0, 1.15, 3.5))
         elif self._mode == "fat":
             camera.setPosition(QVector3D(0.9, 1.15, 3.35))
-        else:
+        elif self._mode == "muscle":
             camera.setPosition(QVector3D(2.95, 1.1, 0.05))
+        else:
+            camera.setPosition(QVector3D(0.25, 1.12, 3.45))
 
         camera.setViewCenter(QVector3D(0.0, 0.72, 0.0))
-
-        self._camera_controller = QOrbitCameraController(self._root_entity)
-        self._camera_controller.setCamera(camera)
-        self._camera_controller.setLinearSpeed(35.0)
-        self._camera_controller.setLookSpeed(130.0)
 
     def _setup_lights(self) -> None:
         light = QEntity(self._root_entity)
@@ -309,6 +300,18 @@ class BodyPreviewWidget(QWidget):
                 "calf_r": 0.078,
                 "shoulder_x": 0.285,
             },
+            "neutral": {
+                "head": 0.148,
+                "neck_r": 0.046,
+                "torso_r": 0.182,
+                "torso_h": 0.74,
+                "pelvis": 0.182,
+                "arm_r": 0.070,
+                "forearm_r": 0.060,
+                "leg_r": 0.078,
+                "calf_r": 0.069,
+                "shoulder_x": 0.260,
+            },
         }[self._mode]
 
         core = color
@@ -432,7 +435,10 @@ class BodyPreviewWidget(QWidget):
         }
 
     def _refresh_layers(self) -> None:
-        focus = ACTIVE_ASSET_CATALOG.focus_layer_for_mode(self._mode)
+        if self._mode == "neutral":
+            focus = self._active_layer
+        else:
+            focus = ACTIVE_ASSET_CATALOG.focus_layer_for_mode(self._mode)
         for entry in self._layer_entities:
             spec: LayerAssetSpec = entry["spec"]
             entity = entry["entity"]
