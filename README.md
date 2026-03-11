@@ -42,6 +42,7 @@ python src/main.py
 - Body profile selection (Male, Female, Neutral)
 - Add multiple body instances inside the session
 - Layer-by-layer anatomy exploration from skin to heart/arteries
+- Interactive 3D layer view synchronized with the active anatomy layer
 
 ## Quick smoke test
 

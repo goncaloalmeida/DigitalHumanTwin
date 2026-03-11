@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.layered_body_3d_view import LayeredBody3DView
 from core.imodule import IModule
 
 
@@ -57,6 +58,7 @@ class BodyProfileModule(IModule):
         self._layer_name: Optional[QLabel] = None
         self._layer_description: Optional[QLabel] = None
         self._visible_layers: Optional[QLabel] = None
+        self._layered_3d_view: Optional[LayeredBody3DView] = None
         self._bodies: list[dict[str, object]] = []
         self._next_body_number = 1
 
@@ -85,6 +87,9 @@ class BodyProfileModule(IModule):
             self._root,
         )
         intro.setWordWrap(True)
+
+        content_layout = QHBoxLayout()
+        controls_layout = QVBoxLayout()
 
         selection_box = QGroupBox("Perfil base", self._root)
         selection_layout = QVBoxLayout(selection_box)
@@ -133,10 +138,18 @@ class BodyProfileModule(IModule):
         layer_layout.addWidget(self._layer_description)
         layer_layout.addWidget(self._visible_layers)
 
+        self._layered_3d_view = LayeredBody3DView(self._root)
+
         layout.addWidget(intro)
-        layout.addWidget(selection_box)
-        layout.addWidget(body_list_box)
-        layout.addWidget(layer_box)
+        controls_layout.addWidget(selection_box)
+        controls_layout.addWidget(body_list_box)
+        controls_layout.addWidget(layer_box)
+        controls_layout.addStretch()
+
+        content_layout.addLayout(controls_layout, 2)
+        content_layout.addWidget(self._layered_3d_view, 3)
+
+        layout.addLayout(content_layout)
         layout.addStretch()
 
         self._body_type.currentIndexChanged.connect(self._update_description)
@@ -201,6 +214,9 @@ class BodyProfileModule(IModule):
 
         visible = " -> ".join(layer[0] for layer in self._LAYERS[: index + 1])
         self._visible_layers.setText(f"Visivel: {visible}")
+
+        if self._layered_3d_view is not None:
+            self._layered_3d_view.set_visible_layer(index)
 
         if self._body_list is None:
             return
