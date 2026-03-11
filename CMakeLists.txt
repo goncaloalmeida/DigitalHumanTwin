@@ -12,6 +12,7 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets)
 add_executable(DigitalHumanTwin
     src/main.cpp
     src/app/MainWindow.cpp
+    src/modules/BodyProfileModule.cpp
 )
 
 target_include_directories(DigitalHumanTwin PRIVATE src)
