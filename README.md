@@ -1,6 +1,6 @@
 # Digital Human Twin
 
-Minimal C++/Qt base for a future digital human twin application.
+Minimal Python/PySide6 base for a future digital human twin application.
 
 ## Goal
 
@@ -10,9 +10,8 @@ Minimal C++/Qt base for a future digital human twin application.
 
 ## Tech
 
-- C++17
-- Qt 6 Widgets
-- CMake
+- Python 3.10+
+- PySide6 (Qt for Python)
 
 ## Structure
 
@@ -21,13 +20,25 @@ src/
   app/
   core/
   modules/
+  main.py
 ```
 
-## Build
-
-Qt 6 must be installed first.
+## Setup
 
 ```bash
-cmake -S . -B build
-cmake --build build
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+## Run
+
+```bash
+python src/main.py
+```
+
+## Quick smoke test
+
+```bash
+python src/main.py --smoke-test
 ```

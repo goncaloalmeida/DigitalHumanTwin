@@ -11,3 +11,10 @@ cmake-build-*/
 *.dll
 *.lib
 *.exp
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
