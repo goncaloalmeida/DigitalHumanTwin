@@ -10,6 +10,8 @@ from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 from core.anatomy_assets import ACTIVE_ASSET_CATALOG, LayerAssetSpec
 
 BodyMode = Literal["skeleton", "fat", "muscle", "neutral"]
+MaterialEntry = dict[str, object]
+PartEntry = dict[str, object]
 
 
 def _resolve_symbol(module: object, *names: str) -> object:
@@ -20,6 +22,14 @@ def _resolve_symbol(module: object, *names: str) -> object:
     raise AttributeError(f"Missing Qt3D symbol candidates: {', '.join(names)}")
 
 
+def _resolve_optional_symbol(module: object, *names: str) -> object | None:
+    for name in names:
+        symbol = getattr(module, name, None)
+        if symbol is not None:
+            return symbol
+    return None
+
+
 try:
     from PySide6 import Qt3DCore, Qt3DExtras, Qt3DRender
 
@@ -28,6 +38,11 @@ try:
 
     Qt3DWindow = _resolve_symbol(Qt3DExtras, "Qt3DWindow", "Qt3DExtras.Qt3DWindow")
     QPhongMaterial = _resolve_symbol(Qt3DExtras, "QPhongMaterial", "Qt3DExtras.QPhongMaterial")
+    QPhongAlphaMaterial = _resolve_optional_symbol(
+        Qt3DExtras,
+        "QPhongAlphaMaterial",
+        "Qt3DExtras.QPhongAlphaMaterial",
+    )
     QCuboidMesh = _resolve_symbol(Qt3DExtras, "QCuboidMesh", "Qt3DExtras.QCuboidMesh")
     QCylinderMesh = _resolve_symbol(Qt3DExtras, "QCylinderMesh", "Qt3DExtras.QCylinderMesh")
     QSphereMesh = _resolve_symbol(Qt3DExtras, "QSphereMesh", "Qt3DExtras.QSphereMesh")
@@ -52,6 +67,7 @@ class BodyPreviewWidget(QWidget):
         self._container: QWidget | None = None
         self._view3d: object | None = None
         self._timer = QTimer(self)
+        self._alpha_material_class = QPhongAlphaMaterial if QT3D_AVAILABLE else None
 
         self.setMinimumSize(220, 360)
 
@@ -92,8 +108,8 @@ class BodyPreviewWidget(QWidget):
         self._pulse += 0.06
 
         breath = 1.0 + 0.012 * (0.5 + 0.5 * math.sin(self._pulse))
-        yaw = ACTIVE_ASSET_CATALOG.pose_yaw_for_mode(self._mode)
-        idle_turn = 1.6 * math.sin(self._pulse * 0.45)
+        yaw = 0.0 if self._mode == "neutral" else ACTIVE_ASSET_CATALOG.pose_yaw_for_mode(self._mode)
+        idle_turn = 1.1 * math.sin(self._pulse * 0.42)
         for entry in self._layer_entities:
             transform = entry["transform"]
             spec: LayerAssetSpec = entry["spec"]
@@ -102,44 +118,44 @@ class BodyPreviewWidget(QWidget):
 
     def _setup_camera(self, view3d: object) -> None:
         camera = view3d.camera()
-        camera.lens().setPerspectiveProjection(38.0, 1.0, 0.1, 1000.0)
+        camera.lens().setPerspectiveProjection(33.0, 1.0, 0.1, 1000.0)
 
         if self._mode == "skeleton":
-            camera.setPosition(QVector3D(0.0, 1.15, 3.5))
+            camera.setPosition(QVector3D(0.0, 1.03, 3.28))
         elif self._mode == "fat":
-            camera.setPosition(QVector3D(0.9, 1.15, 3.35))
+            camera.setPosition(QVector3D(0.48, 1.04, 3.28))
         elif self._mode == "muscle":
-            camera.setPosition(QVector3D(2.95, 1.1, 0.05))
+            camera.setPosition(QVector3D(2.72, 1.02, 0.0))
         else:
-            camera.setPosition(QVector3D(0.25, 1.12, 3.45))
+            camera.setPosition(QVector3D(0.14, 1.03, 3.28))
 
-        camera.setViewCenter(QVector3D(0.0, 0.72, 0.0))
+        camera.setViewCenter(QVector3D(0.0, 0.60, 0.0))
 
     def _setup_lights(self) -> None:
         light = QEntity(self._root_entity)
         point = QPointLight(light)
-        point.setColor(QColor(236, 248, 255))
-        point.setIntensity(1.95)
+        point.setColor(QColor(220, 244, 255))
+        point.setIntensity(2.0)
         t = QTransform(light)
-        t.setTranslation(QVector3D(3.8, 4.8, 3.8))
+        t.setTranslation(QVector3D(3.3, 4.6, 3.0))
         light.addComponent(point)
         light.addComponent(t)
 
         fill = QEntity(self._root_entity)
         fill_light = QPointLight(fill)
-        fill_light.setColor(QColor(145, 176, 235))
-        fill_light.setIntensity(1.05)
+        fill_light.setColor(QColor(118, 170, 238))
+        fill_light.setIntensity(1.2)
         fill_t = QTransform(fill)
-        fill_t.setTranslation(QVector3D(-3.7, 2.0, 2.6))
+        fill_t.setTranslation(QVector3D(-3.15, 2.1, 2.25))
         fill.addComponent(fill_light)
         fill.addComponent(fill_t)
 
         rim = QEntity(self._root_entity)
         rim_light = QPointLight(rim)
-        rim_light.setColor(QColor(104, 166, 255))
-        rim_light.setIntensity(0.85)
+        rim_light.setColor(QColor(92, 154, 250))
+        rim_light.setIntensity(0.78)
         rim_t = QTransform(rim)
-        rim_t.setTranslation(QVector3D(-1.8, 2.3, -3.5))
+        rim_t.setTranslation(QVector3D(-1.2, 2.1, -3.0))
         rim.addComponent(rim_light)
         rim.addComponent(rim_t)
 
@@ -149,11 +165,11 @@ class BodyPreviewWidget(QWidget):
 
             transform = QTransform(entity)
             transform.setScale(spec.base_scale)
-            transform.setTranslation(QVector3D(0.0, 0.25, 0.0))
+            transform.setTranslation(QVector3D(0.0, -0.05, 0.0))
             transform.setRotationY(ACTIVE_ASSET_CATALOG.pose_yaw_for_mode(self._mode))
             entity.addComponent(transform)
 
-            model = self._build_procedural_humanoid(entity, QColor(*spec.rgb))
+            model = self._build_layer_geometry(entity, spec.layer_index, QColor(*spec.rgb))
 
             self._layer_entities.append(
                 {
@@ -165,25 +181,67 @@ class BodyPreviewWidget(QWidget):
                 }
             )
 
-    def _make_material(self, parent: object, color: QColor) -> object:
-        material = QPhongMaterial(parent)
-        material.setDiffuse(color)
+    def _make_material(self, parent: object, color: QColor, opacity: float, shininess: float) -> object:
+        opacity = max(0.02, min(0.98, opacity))
+        if self._alpha_material_class is not None:
+            material = self._alpha_material_class(parent)
+            material.setDiffuse(color)
+            if hasattr(material, "setAlpha"):
+                material.setAlpha(opacity)
+        else:
+            material = QPhongMaterial(parent)
+            diffuse = QColor(color)
+            diffuse.setAlphaF(opacity)
+            material.setDiffuse(diffuse)
+
         if hasattr(material, "setAmbient"):
-            material.setAmbient(color.darker(128))
+            ambient = QColor(color).darker(136)
+            ambient.setAlphaF(min(0.98, opacity))
+            material.setAmbient(ambient)
         if hasattr(material, "setSpecular"):
-            material.setSpecular(QColor(218, 232, 255))
+            material.setSpecular(QColor(208, 235, 255))
         if hasattr(material, "setShininess"):
-            material.setShininess(28.0)
+            material.setShininess(shininess)
         return material
+
+    def _build_material_entry(
+        self,
+        parent: object,
+        color: QColor,
+        opacity: float,
+        shininess: float,
+    ) -> MaterialEntry:
+        return {
+            "material": self._make_material(parent, color, opacity, shininess),
+            "base_color": QColor(color),
+            "base_opacity": float(opacity),
+        }
+
+    def _set_material_style(self, material_entry: MaterialEntry, color: QColor, opacity: float) -> None:
+        material = material_entry["material"]
+        opacity = max(0.02, min(0.98, float(opacity)))
+
+        diffuse = QColor(color)
+        diffuse.setAlphaF(opacity)
+        material.setDiffuse(diffuse)
+
+        if hasattr(material, "setAlpha"):
+            material.setAlpha(opacity)
+        if hasattr(material, "setAmbient"):
+            ambient = QColor(color).darker(136)
+            ambient.setAlphaF(opacity)
+            material.setAmbient(ambient)
 
     def _add_box_part(
         self,
         parent: object,
         color: QColor,
+        opacity: float,
         x_extent: float,
         y_extent: float,
         z_extent: float,
         position: QVector3D,
+        shininess: float = 26.0,
     ) -> dict[str, object]:
         part = QEntity(parent)
         mesh = QCuboidMesh(part)
@@ -191,18 +249,18 @@ class BodyPreviewWidget(QWidget):
         mesh.setYExtent(y_extent)
         mesh.setZExtent(z_extent)
 
-        material = self._make_material(part, color)
+        material_entry = self._build_material_entry(part, color, opacity, shininess)
 
         transform = QTransform(part)
         transform.setTranslation(position)
 
         part.addComponent(mesh)
-        part.addComponent(material)
+        part.addComponent(material_entry["material"])
         part.addComponent(transform)
         return {
             "entity": part,
             "mesh": mesh,
-            "material": material,
+            "material_entry": material_entry,
             "transform": transform,
         }
 
@@ -210,9 +268,14 @@ class BodyPreviewWidget(QWidget):
         self,
         parent: object,
         color: QColor,
+        opacity: float,
         radius: float,
         length: float,
         position: QVector3D,
+        rot_x: float = 0.0,
+        rot_y: float = 0.0,
+        rot_z: float = 0.0,
+        shininess: float = 28.0,
     ) -> dict[str, object]:
         part = QEntity(parent)
         mesh = QCylinderMesh(part)
@@ -221,18 +284,24 @@ class BodyPreviewWidget(QWidget):
         mesh.setRings(28)
         mesh.setSlices(28)
 
-        material = self._make_material(part, color)
+        material_entry = self._build_material_entry(part, color, opacity, shininess)
 
         transform = QTransform(part)
         transform.setTranslation(position)
+        if rot_x and hasattr(transform, "setRotationX"):
+            transform.setRotationX(rot_x)
+        if rot_y and hasattr(transform, "setRotationY"):
+            transform.setRotationY(rot_y)
+        if rot_z and hasattr(transform, "setRotationZ"):
+            transform.setRotationZ(rot_z)
 
         part.addComponent(mesh)
-        part.addComponent(material)
+        part.addComponent(material_entry["material"])
         part.addComponent(transform)
         return {
             "entity": part,
             "mesh": mesh,
-            "material": material,
+            "material_entry": material_entry,
             "transform": transform,
         }
 
@@ -240,205 +309,366 @@ class BodyPreviewWidget(QWidget):
         self,
         parent: object,
         color: QColor,
+        opacity: float,
         radius: float,
         position: QVector3D,
+        scale: QVector3D | None = None,
+        shininess: float = 30.0,
     ) -> dict[str, object]:
         part = QEntity(parent)
         mesh = QSphereMesh(part)
         mesh.setRadius(radius)
+        if hasattr(mesh, "setRings"):
+            mesh.setRings(32)
+        if hasattr(mesh, "setSlices"):
+            mesh.setSlices(32)
 
-        material = self._make_material(part, color)
+        material_entry = self._build_material_entry(part, color, opacity, shininess)
 
         transform = QTransform(part)
         transform.setTranslation(position)
+        if scale is not None:
+            if hasattr(transform, "setScale3D"):
+                transform.setScale3D(scale)
+            else:
+                transform.setScale(max(scale.x(), scale.y(), scale.z()))
 
         part.addComponent(mesh)
-        part.addComponent(material)
+        part.addComponent(material_entry["material"])
         part.addComponent(transform)
         return {
             "entity": part,
             "mesh": mesh,
-            "material": material,
+            "material_entry": material_entry,
             "transform": transform,
         }
 
-    def _build_procedural_humanoid(self, parent: object, color: QColor) -> dict[str, list[object]]:
-        profile = {
-            "skeleton": {
-                "head": 0.135,
-                "neck_r": 0.034,
-                "torso_r": 0.145,
-                "torso_h": 0.70,
-                "pelvis": 0.155,
-                "arm_r": 0.045,
-                "forearm_r": 0.040,
-                "leg_r": 0.052,
-                "calf_r": 0.046,
-                "shoulder_x": 0.22,
-            },
-            "fat": {
-                "head": 0.165,
-                "neck_r": 0.052,
-                "torso_r": 0.250,
-                "torso_h": 0.80,
-                "pelvis": 0.240,
-                "arm_r": 0.088,
-                "forearm_r": 0.078,
-                "leg_r": 0.108,
-                "calf_r": 0.095,
-                "shoulder_x": 0.30,
-            },
-            "muscle": {
-                "head": 0.152,
-                "neck_r": 0.050,
-                "torso_r": 0.205,
-                "torso_h": 0.76,
-                "pelvis": 0.195,
-                "arm_r": 0.080,
-                "forearm_r": 0.068,
-                "leg_r": 0.090,
-                "calf_r": 0.078,
-                "shoulder_x": 0.285,
-            },
-            "neutral": {
-                "head": 0.148,
-                "neck_r": 0.046,
-                "torso_r": 0.182,
-                "torso_h": 0.74,
-                "pelvis": 0.182,
-                "arm_r": 0.070,
-                "forearm_r": 0.060,
-                "leg_r": 0.078,
-                "calf_r": 0.069,
-                "shoulder_x": 0.260,
-            },
-        }[self._mode]
-
-        core = color
-        mid = color.darker(114)
-        joint = color.darker(132)
-
-        parts: list[dict[str, object]] = []
-
-        parts.append(self._add_sphere_part(parent, core, profile["head"], QVector3D(0.0, 1.70, 0.0)))
-        parts.append(
-            self._add_cylinder_part(parent, mid, profile["neck_r"], 0.15, QVector3D(0.0, 1.50, 0.0))
-        )
-        parts.append(
-            self._add_cylinder_part(
-                parent,
-                core,
-                profile["torso_r"],
-                profile["torso_h"],
-                QVector3D(0.0, 1.03, 0.0),
-            )
-        )
-        parts.append(self._add_sphere_part(parent, mid, profile["pelvis"], QVector3D(0.0, 0.56, 0.0)))
-
-        parts.append(
-            self._add_sphere_part(parent, joint, profile["arm_r"] * 1.15, QVector3D(-profile["shoulder_x"], 1.30, 0.0))
-        )
-        parts.append(
-            self._add_sphere_part(parent, joint, profile["arm_r"] * 1.15, QVector3D(profile["shoulder_x"], 1.30, 0.0))
-        )
-
-        parts.append(
-            self._add_cylinder_part(
-                parent,
-                core,
-                profile["arm_r"],
-                0.50,
-                QVector3D(-profile["shoulder_x"], 1.00, 0.0),
-            )
-        )
-        parts.append(
-            self._add_cylinder_part(
-                parent,
-                core,
-                profile["arm_r"],
-                0.50,
-                QVector3D(profile["shoulder_x"], 1.00, 0.0),
-            )
-        )
-
-        parts.append(
-            self._add_sphere_part(parent, joint, profile["arm_r"] * 1.02, QVector3D(-profile["shoulder_x"], 0.74, 0.0))
-        )
-        parts.append(
-            self._add_sphere_part(parent, joint, profile["arm_r"] * 1.02, QVector3D(profile["shoulder_x"], 0.74, 0.0))
-        )
-        parts.append(
-            self._add_cylinder_part(
-                parent,
-                core,
-                profile["forearm_r"],
-                0.44,
-                QVector3D(-profile["shoulder_x"], 0.48, 0.0),
-            )
-        )
-        parts.append(
-            self._add_cylinder_part(
-                parent,
-                core,
-                profile["forearm_r"],
-                0.44,
-                QVector3D(profile["shoulder_x"], 0.48, 0.0),
-            )
-        )
-
-        parts.append(
-            self._add_sphere_part(parent, mid, profile["forearm_r"] * 1.08, QVector3D(-profile["shoulder_x"], 0.22, 0.03))
-        )
-        parts.append(
-            self._add_sphere_part(parent, mid, profile["forearm_r"] * 1.08, QVector3D(profile["shoulder_x"], 0.22, 0.03))
-        )
-
-        hip_x = 0.14 if self._mode != "fat" else 0.16
-        parts.append(
-            self._add_cylinder_part(parent, core, profile["leg_r"], 0.52, QVector3D(-hip_x, 0.24, 0.0))
-        )
-        parts.append(
-            self._add_cylinder_part(parent, core, profile["leg_r"], 0.52, QVector3D(hip_x, 0.24, 0.0))
-        )
-        parts.append(self._add_sphere_part(parent, joint, profile["leg_r"] * 0.98, QVector3D(-hip_x, -0.04, 0.0)))
-        parts.append(self._add_sphere_part(parent, joint, profile["leg_r"] * 0.98, QVector3D(hip_x, -0.04, 0.0)))
-        parts.append(
-            self._add_cylinder_part(parent, core, profile["calf_r"], 0.46, QVector3D(-hip_x, -0.29, 0.0))
-        )
-        parts.append(
-            self._add_cylinder_part(parent, core, profile["calf_r"], 0.46, QVector3D(hip_x, -0.29, 0.0))
-        )
-        parts.append(
-            self._add_box_part(
-                parent,
-                mid,
-                profile["calf_r"] * 1.4,
-                profile["calf_r"] * 0.45,
-                profile["calf_r"] * 2.2,
-                QVector3D(-hip_x, -0.55, 0.05),
-            )
-        )
-        parts.append(
-            self._add_box_part(
-                parent,
-                mid,
-                profile["calf_r"] * 1.4,
-                profile["calf_r"] * 0.45,
-                profile["calf_r"] * 2.2,
-                QVector3D(hip_x, -0.55, 0.05),
-            )
-        )
+    def _build_layer_geometry(self, parent: object, layer_index: int, layer_color: QColor) -> dict[str, list[object]]:
+        if layer_index <= 2:
+            fullness = {0: 1.0, 1: 0.965, 2: 0.93}[layer_index]
+            shell_opacity = {0: 0.14, 1: 0.20, 2: 0.28}[layer_index]
+            shell_color = QColor(layer_color)
+            parts = self._build_organic_shell(parent, shell_color, fullness, shell_opacity)
+        elif layer_index == 3:
+            parts = self._build_skeleton_core(parent, QColor(208, 236, 255), 0.72)
+        elif layer_index == 4:
+            parts = self._build_organ_core(parent)
+        else:
+            parts = self._build_vascular_core(parent)
 
         return {
             "parts": parts,
-            "materials": [part["material"] for part in parts],
+            "materials": [part["material_entry"] for part in parts],
         }
+
+    def _build_organic_shell(
+        self,
+        parent: object,
+        shell_color: QColor,
+        fullness: float,
+        opacity: float,
+    ) -> list[PartEntry]:
+        parts: list[PartEntry] = []
+        core = QColor(shell_color)
+        soft = shell_color.lighter(106)
+        lower = shell_color.darker(112)
+
+        shoulder_x = 0.24 * fullness
+        arm_x = 0.33 * fullness
+        hip_x = 0.125 * fullness
+
+        parts.append(
+            self._add_sphere_part(
+                parent,
+                soft,
+                opacity * 0.95,
+                0.16 * fullness,
+                QVector3D(0.0, 1.67, 0.0),
+                scale=QVector3D(0.86, 1.04, 0.88),
+            )
+        )
+        parts.append(
+            self._add_cylinder_part(parent, core, opacity * 0.95, 0.045 * fullness, 0.14, QVector3D(0.0, 1.47, 0.0))
+        )
+
+        parts.append(
+            self._add_sphere_part(
+                parent,
+                core,
+                opacity,
+                0.255 * fullness,
+                QVector3D(0.0, 1.12, 0.0),
+                scale=QVector3D(1.04, 1.24, 0.72),
+            )
+        )
+        parts.append(
+            self._add_sphere_part(
+                parent,
+                core,
+                opacity,
+                0.215 * fullness,
+                QVector3D(0.0, 0.80, 0.0),
+                scale=QVector3D(0.96, 1.02, 0.70),
+            )
+        )
+        parts.append(
+            self._add_sphere_part(
+                parent,
+                lower,
+                opacity,
+                0.205 * fullness,
+                QVector3D(0.0, 0.55, 0.0),
+                scale=QVector3D(1.06, 0.80, 0.86),
+            )
+        )
+
+        parts.append(self._add_sphere_part(parent, soft, opacity * 0.92, 0.07 * fullness, QVector3D(-shoulder_x, 1.26, 0.0)))
+        parts.append(self._add_sphere_part(parent, soft, opacity * 0.92, 0.07 * fullness, QVector3D(shoulder_x, 1.26, 0.0)))
+
+        parts.append(
+            self._add_cylinder_part(
+                parent,
+                core,
+                opacity * 0.94,
+                0.066 * fullness,
+                0.43,
+                QVector3D(-arm_x, 0.99, 0.0),
+                rot_z=11.0,
+            )
+        )
+        parts.append(
+            self._add_cylinder_part(
+                parent,
+                core,
+                opacity * 0.94,
+                0.066 * fullness,
+                0.43,
+                QVector3D(arm_x, 0.99, 0.0),
+                rot_z=-11.0,
+            )
+        )
+        parts.append(
+            self._add_cylinder_part(
+                parent,
+                core,
+                opacity * 0.94,
+                0.056 * fullness,
+                0.37,
+                QVector3D(-0.39 * fullness, 0.56, 0.0),
+                rot_z=6.0,
+            )
+        )
+        parts.append(
+            self._add_cylinder_part(
+                parent,
+                core,
+                opacity * 0.94,
+                0.056 * fullness,
+                0.37,
+                QVector3D(0.39 * fullness, 0.56, 0.0),
+                rot_z=-6.0,
+            )
+        )
+        parts.append(
+            self._add_sphere_part(
+                parent,
+                lower,
+                opacity * 0.94,
+                0.047 * fullness,
+                QVector3D(-0.405 * fullness, 0.30, 0.05),
+                scale=QVector3D(1.2, 0.5, 1.55),
+            )
+        )
+        parts.append(
+            self._add_sphere_part(
+                parent,
+                lower,
+                opacity * 0.94,
+                0.047 * fullness,
+                QVector3D(0.405 * fullness, 0.30, 0.05),
+                scale=QVector3D(1.2, 0.5, 1.55),
+            )
+        )
+
+        parts.append(self._add_cylinder_part(parent, core, opacity * 0.96, 0.096 * fullness, 0.54, QVector3D(-hip_x, 0.18, 0.0)))
+        parts.append(self._add_cylinder_part(parent, core, opacity * 0.96, 0.096 * fullness, 0.54, QVector3D(hip_x, 0.18, 0.0)))
+        parts.append(self._add_cylinder_part(parent, core, opacity * 0.96, 0.078 * fullness, 0.52, QVector3D(-hip_x, -0.36, 0.0)))
+        parts.append(self._add_cylinder_part(parent, core, opacity * 0.96, 0.078 * fullness, 0.52, QVector3D(hip_x, -0.36, 0.0)))
+        parts.append(
+            self._add_sphere_part(
+                parent,
+                lower,
+                opacity,
+                0.062 * fullness,
+                QVector3D(-hip_x, -0.64, 0.08),
+                scale=QVector3D(1.28, 0.36, 2.1),
+            )
+        )
+        parts.append(
+            self._add_sphere_part(
+                parent,
+                lower,
+                opacity,
+                0.062 * fullness,
+                QVector3D(hip_x, -0.64, 0.08),
+                scale=QVector3D(1.28, 0.36, 2.1),
+            )
+        )
+
+        return parts
+
+    def _build_skeleton_core(self, parent: object, bone_color: QColor, opacity: float) -> list[PartEntry]:
+        parts: list[PartEntry] = []
+        spine_color = bone_color.lighter(104)
+
+        parts.append(
+            self._add_sphere_part(
+                parent,
+                bone_color,
+                opacity,
+                0.145,
+                QVector3D(0.0, 1.70, 0.0),
+                scale=QVector3D(0.9, 1.05, 0.9),
+            )
+        )
+        parts.append(self._add_cylinder_part(parent, bone_color, opacity, 0.052, 0.14, QVector3D(0.0, 1.50, 0.0)))
+        parts.append(self._add_cylinder_part(parent, bone_color, opacity, 0.125, 0.58, QVector3D(0.0, 1.07, 0.0)))
+        parts.append(self._add_sphere_part(parent, bone_color, opacity, 0.16, QVector3D(0.0, 0.56, 0.0), scale=QVector3D(1.05, 0.62, 0.82)))
+
+        for index in range(9):
+            y = 1.36 - (index * 0.105)
+            parts.append(self._add_sphere_part(parent, spine_color, opacity, 0.045, QVector3D(0.0, y, -0.01)))
+
+        for side in (-1.0, 1.0):
+            x = 0.35 * side
+            parts.append(self._add_cylinder_part(parent, bone_color, opacity, 0.04, 0.43, QVector3D(x, 1.0, 0.0), rot_z=-10.0 * side))
+            parts.append(self._add_cylinder_part(parent, bone_color, opacity, 0.035, 0.38, QVector3D(0.39 * side, 0.50, 0.0), rot_z=-6.0 * side))
+            parts.append(self._add_cylinder_part(parent, bone_color, opacity, 0.052, 0.50, QVector3D(0.145 * side, 0.23, 0.0)))
+            parts.append(self._add_cylinder_part(parent, bone_color, opacity, 0.046, 0.48, QVector3D(0.145 * side, -0.31, 0.0)))
+
+        return parts
+
+    def _build_organ_core(self, parent: object) -> list[PartEntry]:
+        parts: list[PartEntry] = []
+
+        heart = QColor(235, 106, 128)
+        lung = QColor(126, 196, 255)
+        spine = QColor(168, 130, 255)
+
+        parts.append(
+            self._add_sphere_part(
+                parent,
+                spine,
+                0.78,
+                0.055,
+                QVector3D(0.0, 0.98, -0.03),
+                scale=QVector3D(0.65, 3.55, 0.65),
+                shininess=20.0,
+            )
+        )
+        parts.append(
+            self._add_sphere_part(
+                parent,
+                heart,
+                0.9,
+                0.11,
+                QVector3D(0.03, 1.00, 0.10),
+                scale=QVector3D(0.9, 1.08, 0.8),
+                shininess=35.0,
+            )
+        )
+        parts.append(
+            self._add_sphere_part(
+                parent,
+                lung,
+                0.66,
+                0.12,
+                QVector3D(-0.12, 1.06, 0.03),
+                scale=QVector3D(0.95, 1.25, 0.75),
+                shininess=18.0,
+            )
+        )
+        parts.append(
+            self._add_sphere_part(
+                parent,
+                lung,
+                0.66,
+                0.12,
+                QVector3D(0.15, 1.06, 0.03),
+                scale=QVector3D(0.95, 1.25, 0.75),
+                shininess=18.0,
+            )
+        )
+
+        parts.append(self._add_cylinder_part(parent, heart, 0.9, 0.022, 0.22, QVector3D(0.01, 1.21, 0.08), shininess=34.0))
+        parts.append(self._add_cylinder_part(parent, heart, 0.9, 0.02, 0.15, QVector3D(0.09, 0.88, 0.09), rot_z=-16.0, shininess=34.0))
+
+        return parts
+
+    def _build_vascular_core(self, parent: object) -> list[PartEntry]:
+        parts: list[PartEntry] = []
+        artery = QColor(182, 98, 242)
+        vein = QColor(96, 180, 255)
+
+        parts.append(self._add_cylinder_part(parent, artery, 0.92, 0.018, 0.82, QVector3D(0.0, 0.95, 0.10), shininess=18.0))
+        parts.append(self._add_cylinder_part(parent, artery, 0.9, 0.013, 0.30, QVector3D(0.0, 1.40, 0.10), shininess=18.0))
+
+        for side in (-1.0, 1.0):
+            parts.append(
+                self._add_cylinder_part(
+                    parent,
+                    vein,
+                    0.85,
+                    0.012,
+                    0.56,
+                    QVector3D(0.34 * side, 0.92, 0.09),
+                    rot_z=-12.0 * side,
+                    shininess=14.0,
+                )
+            )
+            parts.append(
+                self._add_cylinder_part(
+                    parent,
+                    vein,
+                    0.85,
+                    0.010,
+                    0.46,
+                    QVector3D(0.38 * side, 0.48, 0.08),
+                    rot_z=-6.0 * side,
+                    shininess=14.0,
+                )
+            )
+            parts.append(
+                self._add_cylinder_part(
+                    parent,
+                    artery,
+                    0.88,
+                    0.013,
+                    0.62,
+                    QVector3D(0.14 * side, 0.20, 0.08),
+                    shininess=16.0,
+                )
+            )
+            parts.append(
+                self._add_cylinder_part(
+                    parent,
+                    artery,
+                    0.88,
+                    0.011,
+                    0.56,
+                    QVector3D(0.14 * side, -0.33, 0.08),
+                    shininess=16.0,
+                )
+            )
+
+        return parts
 
     def _refresh_layers(self) -> None:
         if self._mode == "neutral":
             focus = self._active_layer
         else:
             focus = ACTIVE_ASSET_CATALOG.focus_layer_for_mode(self._mode)
+
         for entry in self._layer_entities:
             spec: LayerAssetSpec = entry["spec"]
             entity = entry["entity"]
@@ -449,13 +679,27 @@ class BodyPreviewWidget(QWidget):
             if not visible:
                 continue
 
-            base = QColor(*spec.rgb)
+            emphasis_opacity = 1.0
+            tone = "inactive"
             if spec.layer_index == self._active_layer:
-                color = base.lighter(165)
+                tone = "active"
+                emphasis_opacity = 1.06
             elif spec.layer_index == focus:
-                color = base.lighter(135)
+                tone = "focus"
+                emphasis_opacity = 1.0
             else:
-                color = base.darker(118)
+                tone = "inactive"
+                emphasis_opacity = 0.78
 
-            for material in materials:
-                material.setDiffuse(color)
+            for material_entry in materials:
+                base_color = QColor(material_entry["base_color"])
+                base_opacity = float(material_entry["base_opacity"])
+
+                if tone == "active":
+                    color = base_color.lighter(108)
+                elif tone == "focus":
+                    color = base_color.lighter(102)
+                else:
+                    color = base_color.darker(104)
+
+                self._set_material_style(material_entry, color, base_opacity * emphasis_opacity)
