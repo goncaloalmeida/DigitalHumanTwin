@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Literal
 
 from PySide6.QtCore import QTimer, QUrl
@@ -32,9 +33,6 @@ try:
         "Qt3DExtras.QOrbitCameraController",
     )
     QPhongMaterial = _resolve_symbol(Qt3DExtras, "QPhongMaterial", "Qt3DExtras.QPhongMaterial")
-    QPhongAlphaMaterial = getattr(Qt3DExtras, "QPhongAlphaMaterial", None)
-    if QPhongAlphaMaterial is None:
-        QPhongAlphaMaterial = getattr(Qt3DExtras, "Qt3DExtras.QPhongAlphaMaterial", None)
 
     QPointLight = _resolve_symbol(Qt3DRender, "QPointLight", "Qt3DRender.QPointLight")
     QMesh = _resolve_symbol(Qt3DRender, "QMesh", "Qt3DRender.QMesh")
@@ -55,6 +53,7 @@ class BodyPreviewWidget(QWidget):
         self._root_entity: object | None = None
         self._layer_entities: list[dict[str, object]] = []
         self._container: QWidget | None = None
+        self._camera_controller: object | None = None
         self._timer = QTimer(self)
 
         self.setMinimumSize(220, 360)
@@ -95,7 +94,7 @@ class BodyPreviewWidget(QWidget):
     def _tick(self) -> None:
         self._pulse += 0.06
 
-        breath = 1.0 + 0.012 * (0.5 + 0.5 * __import__("math").sin(self._pulse))
+        breath = 1.0 + 0.012 * (0.5 + 0.5 * math.sin(self._pulse))
         yaw = ACTIVE_ASSET_CATALOG.pose_yaw_for_mode(self._mode)
         for entry in self._layer_entities:
             transform = entry["transform"]
@@ -116,10 +115,10 @@ class BodyPreviewWidget(QWidget):
 
         camera.setViewCenter(QVector3D(0.0, 0.8, 0.0))
 
-        controller = QOrbitCameraController(self._root_entity)
-        controller.setCamera(camera)
-        controller.setLinearSpeed(35.0)
-        controller.setLookSpeed(130.0)
+        self._camera_controller = QOrbitCameraController(self._root_entity)
+        self._camera_controller.setCamera(camera)
+        self._camera_controller.setLinearSpeed(35.0)
+        self._camera_controller.setLookSpeed(130.0)
 
     def _setup_lights(self) -> None:
         light = QEntity(self._root_entity)
@@ -147,12 +146,12 @@ class BodyPreviewWidget(QWidget):
             mesh = QMesh(entity)
             mesh.setSource(QUrl.fromLocalFile(str(spec.mesh_path)))
 
-            if QPhongAlphaMaterial is not None:
-                material = QPhongAlphaMaterial(entity)
-                material.setAlpha(0.0)
-            else:
-                material = QPhongMaterial(entity)
+            material = QPhongMaterial(entity)
             material.setDiffuse(QColor(*spec.rgb))
+            if hasattr(material, "setAmbient"):
+                material.setAmbient(QColor(28, 40, 66))
+            if hasattr(material, "setShininess"):
+                material.setShininess(18.0)
 
             transform = QTransform(entity)
             transform.setScale(spec.base_scale)
@@ -182,16 +181,14 @@ class BodyPreviewWidget(QWidget):
             visible = spec.layer_index <= self._active_layer
             entity.setEnabled(visible)
             if not visible:
-                if hasattr(material, "setAlpha"):
-                    material.setAlpha(0.0)
                 continue
 
-            if spec.layer_index == focus:
-                alpha = 0.92
-            elif spec.layer_index < focus:
-                alpha = 0.20
+            base = QColor(*spec.rgb)
+            if spec.layer_index == self._active_layer:
+                color = base.lighter(145)
+            elif spec.layer_index == focus:
+                color = base.lighter(122)
             else:
-                alpha = 0.14
+                color = base.darker(132)
 
-            if hasattr(material, "setAlpha"):
-                material.setAlpha(alpha)
+            material.setDiffuse(color)
