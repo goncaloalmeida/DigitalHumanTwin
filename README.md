@@ -43,9 +43,24 @@ Minimal Python/PySide6 base for a future digital human twin application.
 src/
   app/
   core/
+  assets/
   modules/
   main.py
 ```
+
+## 3D Body Pipeline (implemented)
+
+1. Import and prepare assets by layer:
+- Local pipeline root at `src/assets/bodyparts3d/`
+- Asset catalog and layer definitions in `src/core/anatomy_assets.py`
+
+2. Map Skeleton/Fat/Muscle cards to anatomy layers:
+- Mapping logic by mode/layer in `src/core/anatomy_assets.py`
+- Runtime layer visibility tied to slider state
+
+3. Keep UI and replace visual engine:
+- Existing dashboard layout kept
+- Body cards switched to Qt3D mesh rendering in `src/app/body_preview_widget.py`
 
 ## Setup
 
@@ -68,7 +83,8 @@ python src/main.py
 - Layer-by-layer anatomy exploration from skin to heart/arteries
 - Dashboard view inspired by clinical twin layouts (Skeleton/Fat/Muscle + Scanned Organs + timeline)
 - Provider abstraction ready for future real-asset integration (`src/core/anatomy_provider.py`)
-- Upgraded body renderer with premium x-ray style visuals, glow and subtle breathing animation
+- Qt3D mesh renderer for body cards (front / 3-quarter / side perspectives)
+- BodyParts3D-first asset pipeline with layer-based rendering control
 
 ## Quick smoke test
 
