@@ -37,6 +37,12 @@ pip install -r requirements.txt
 python src/main.py
 ```
 
+## Current module capabilities
+
+- Body profile selection (Male, Female, Neutral)
+- Add multiple body instances inside the session
+- Layer-by-layer anatomy exploration from skin to heart/arteries
+
 ## Quick smoke test
 
 ```bash
