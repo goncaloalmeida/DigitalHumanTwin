@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from typing import Literal
 
-from PySide6.QtCore import QTimer, QUrl
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QColor, QVector3D
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
@@ -33,9 +33,10 @@ try:
         "Qt3DExtras.QOrbitCameraController",
     )
     QPhongMaterial = _resolve_symbol(Qt3DExtras, "QPhongMaterial", "Qt3DExtras.QPhongMaterial")
+    QCuboidMesh = _resolve_symbol(Qt3DExtras, "QCuboidMesh", "Qt3DExtras.QCuboidMesh")
+    QSphereMesh = _resolve_symbol(Qt3DExtras, "QSphereMesh", "Qt3DExtras.QSphereMesh")
 
     QPointLight = _resolve_symbol(Qt3DRender, "QPointLight", "Qt3DRender.QPointLight")
-    QMesh = _resolve_symbol(Qt3DRender, "QMesh", "Qt3DRender.QMesh")
 
     QT3D_AVAILABLE = True
     QT3D_IMPORT_ERROR = ""
@@ -53,6 +54,7 @@ class BodyPreviewWidget(QWidget):
         self._root_entity: object | None = None
         self._layer_entities: list[dict[str, object]] = []
         self._container: QWidget | None = None
+        self._view3d: object | None = None
         self._camera_controller: object | None = None
         self._timer = QTimer(self)
 
@@ -67,19 +69,19 @@ class BodyPreviewWidget(QWidget):
             layout.addWidget(fallback)
             return
 
-        view3d = Qt3DWindow()
-        if hasattr(view3d, "defaultFrameGraph"):
-            frame_graph = view3d.defaultFrameGraph()
+        self._view3d = Qt3DWindow()
+        if hasattr(self._view3d, "defaultFrameGraph"):
+            frame_graph = self._view3d.defaultFrameGraph()
             if frame_graph is not None and hasattr(frame_graph, "setClearColor"):
                 frame_graph.setClearColor(QColor(8, 34, 84))
 
-        self._container = QWidget.createWindowContainer(view3d, self)
+        self._container = QWidget.createWindowContainer(self._view3d, self)
         layout.addWidget(self._container, 1)
 
         self._root_entity = QEntity()
-        view3d.setRootEntity(self._root_entity)
+        self._view3d.setRootEntity(self._root_entity)
 
-        self._setup_camera(view3d)
+        self._setup_camera(self._view3d)
         self._setup_lights()
         self._build_layer_entities()
         self.set_active_layer(0)
@@ -143,40 +145,137 @@ class BodyPreviewWidget(QWidget):
         for spec in ACTIVE_ASSET_CATALOG.layer_specs():
             entity = QEntity(self._root_entity)
 
-            mesh = QMesh(entity)
-            mesh.setSource(QUrl.fromLocalFile(str(spec.mesh_path)))
-
-            material = QPhongMaterial(entity)
-            material.setDiffuse(QColor(*spec.rgb))
-            if hasattr(material, "setAmbient"):
-                material.setAmbient(QColor(28, 40, 66))
-            if hasattr(material, "setShininess"):
-                material.setShininess(18.0)
-
             transform = QTransform(entity)
             transform.setScale(spec.base_scale)
-            transform.setTranslation(QVector3D(0.0, 0.0, 0.0))
+            transform.setTranslation(QVector3D(0.0, 0.25, 0.0))
             transform.setRotationY(ACTIVE_ASSET_CATALOG.pose_yaw_for_mode(self._mode))
-
-            entity.addComponent(mesh)
-            entity.addComponent(material)
             entity.addComponent(transform)
+
+            model = self._build_procedural_humanoid(entity, QColor(*spec.rgb))
 
             self._layer_entities.append(
                 {
                     "spec": spec,
                     "entity": entity,
-                    "material": material,
+                    "materials": model["materials"],
+                    "parts": model["parts"],
                     "transform": transform,
                 }
             )
+
+    def _make_material(self, parent: object, color: QColor) -> object:
+        material = QPhongMaterial(parent)
+        material.setDiffuse(color)
+        if hasattr(material, "setAmbient"):
+            material.setAmbient(QColor(28, 40, 66))
+        if hasattr(material, "setShininess"):
+            material.setShininess(18.0)
+        return material
+
+    def _add_box_part(
+        self,
+        parent: object,
+        color: QColor,
+        x_extent: float,
+        y_extent: float,
+        z_extent: float,
+        position: QVector3D,
+    ) -> dict[str, object]:
+        part = QEntity(parent)
+        mesh = QCuboidMesh(part)
+        mesh.setXExtent(x_extent)
+        mesh.setYExtent(y_extent)
+        mesh.setZExtent(z_extent)
+
+        material = self._make_material(part, color)
+
+        transform = QTransform(part)
+        transform.setTranslation(position)
+
+        part.addComponent(mesh)
+        part.addComponent(material)
+        part.addComponent(transform)
+        return {
+            "entity": part,
+            "mesh": mesh,
+            "material": material,
+            "transform": transform,
+        }
+
+    def _add_sphere_part(
+        self,
+        parent: object,
+        color: QColor,
+        radius: float,
+        position: QVector3D,
+    ) -> dict[str, object]:
+        part = QEntity(parent)
+        mesh = QSphereMesh(part)
+        mesh.setRadius(radius)
+
+        material = self._make_material(part, color)
+
+        transform = QTransform(part)
+        transform.setTranslation(position)
+
+        part.addComponent(mesh)
+        part.addComponent(material)
+        part.addComponent(transform)
+        return {
+            "entity": part,
+            "mesh": mesh,
+            "material": material,
+            "transform": transform,
+        }
+
+    def _build_procedural_humanoid(self, parent: object, color: QColor) -> dict[str, list[object]]:
+        parts: list[dict[str, object]] = []
+
+        parts.append(self._add_sphere_part(parent, color, 0.19, QVector3D(0.0, 1.68, 0.0)))
+        parts.append(
+            self._add_box_part(parent, color, 0.58, 0.82, 0.30, QVector3D(0.0, 1.05, 0.0))
+        )
+        parts.append(
+            self._add_box_part(parent, color, 0.52, 0.24, 0.30, QVector3D(0.0, 0.55, 0.0))
+        )
+
+        parts.append(
+            self._add_box_part(parent, color, 0.18, 0.68, 0.18, QVector3D(-0.45, 1.03, 0.0))
+        )
+        parts.append(
+            self._add_box_part(parent, color, 0.18, 0.68, 0.18, QVector3D(0.45, 1.03, 0.0))
+        )
+        parts.append(
+            self._add_box_part(parent, color, 0.15, 0.48, 0.15, QVector3D(-0.48, 0.55, 0.0))
+        )
+        parts.append(
+            self._add_box_part(parent, color, 0.15, 0.48, 0.15, QVector3D(0.48, 0.55, 0.0))
+        )
+
+        parts.append(
+            self._add_box_part(parent, color, 0.19, 0.50, 0.19, QVector3D(-0.14, 0.22, 0.0))
+        )
+        parts.append(
+            self._add_box_part(parent, color, 0.19, 0.50, 0.19, QVector3D(0.14, 0.22, 0.0))
+        )
+        parts.append(
+            self._add_box_part(parent, color, 0.16, 0.46, 0.16, QVector3D(-0.14, -0.26, 0.0))
+        )
+        parts.append(
+            self._add_box_part(parent, color, 0.16, 0.46, 0.16, QVector3D(0.14, -0.26, 0.0))
+        )
+
+        return {
+            "parts": parts,
+            "materials": [part["material"] for part in parts],
+        }
 
     def _refresh_layers(self) -> None:
         focus = ACTIVE_ASSET_CATALOG.focus_layer_for_mode(self._mode)
         for entry in self._layer_entities:
             spec: LayerAssetSpec = entry["spec"]
             entity = entry["entity"]
-            material = entry["material"]
+            materials = entry["materials"]
 
             visible = spec.layer_index <= self._active_layer
             entity.setEnabled(visible)
@@ -191,4 +290,5 @@ class BodyPreviewWidget(QWidget):
             else:
                 color = base.darker(132)
 
-            material.setDiffuse(color)
+            for material in materials:
+                material.setDiffuse(color)
