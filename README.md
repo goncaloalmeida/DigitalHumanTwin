@@ -13,6 +13,30 @@ Minimal Python/PySide6 base for a future digital human twin application.
 - Python 3.10+
 - PySide6 (Qt for Python)
 
+## Chosen Direction (free-first)
+
+- Chosen source: BodyParts3D
+- Why: free anatomical dataset access suitable for prototyping layer-by-layer anatomy
+- License note: BodyParts3D is published under CC BY-SA 2.1 JP; attribution/share-alike obligations apply
+
+## Anatomy Ecosystem Options (market map)
+
+### Open source / free
+
+- 3D Slicer (BSD-style, open source, commercial use allowed): https://www.slicer.org/
+- MITK Workbench (BSD, open source): https://www.mitk.org/
+- ITK-SNAP (free and open source): https://www.itksnap.org/pmwiki/pmwiki.php
+- Open Anatomy Project (free anatomy atlases/project): https://www.openanatomy.org/
+- BodyParts3D (free dataset, CC BY-SA 2.1 JP): https://lifesciencedb.jp/bp3d/
+
+### Commercial / paid
+
+- Complete Anatomy (Elsevier): https://www.3d4medical.com/
+- BioDigital Human (freemium + business plans): https://www.biodigital.com/
+- Visible Body (education/professional licenses): https://www.visiblebody.com/
+- Anatomage (premium real-cadaver ecosystem): https://www.anatomage.com/
+- Materialise Mimics (clinical/engineering suite): https://www.materialise.com/en/healthcare/mimics-innovation-suite
+
 ## Structure
 
 ```text
@@ -39,10 +63,12 @@ python src/main.py
 
 ## Current module capabilities
 
-- Body profile selection (Male, Female, Neutral)
-- Add multiple body instances inside the session
+- Single active body per session (Neutral profile)
+- Create/reset the active Neutral body
 - Layer-by-layer anatomy exploration from skin to heart/arteries
-- Interactive 3D layer view synchronized with the active anatomy layer
+- Dashboard view inspired by clinical twin layouts (Skeleton/Fat/Muscle + Scanned Organs + timeline)
+- Provider abstraction ready for future real-asset integration (`src/core/anatomy_provider.py`)
+- Upgraded body renderer with premium x-ray style visuals, glow and subtle breathing animation
 
 ## Quick smoke test
 
