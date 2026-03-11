@@ -1,0 +1,13 @@
+build/
+cmake-build-*/
+.vs/
+.vscode/
+*.user
+*.obj
+*.o
+*.pdb
+*.ilk
+*.exe
+*.dll
+*.lib
+*.exp
